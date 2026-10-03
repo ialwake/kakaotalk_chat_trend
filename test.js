@@ -249,5 +249,45 @@ test('커밋 훅 감지는 옵션이 많은 긴 명령에서도 빠름', () => {
   assert.ok(Date.now() - start < 200, `${Date.now() - start}ms`);
 });
 
+test('리뷰어 가드 훅이 CSV에 닿는 호출만 막음', () => {
+  const blocked = [
+    ['Read', { file_path: '/a/KakaoTalk_Chat_x.csv' }],
+    ['Read', { file_path: 'data.CSV' }],
+    ['Glob', { pattern: '**/*.csv' }],
+    ['Glob', { pattern: '*.{js,csv}' }],
+    ['Glob', { pattern: 'KakaoTalk_Chat_*' }],
+    ['Grep', { pattern: 'x', path: 'a.csv' }],
+    ['Grep', { pattern: 'x', glob: '*.csv' }],
+    ['Grep', { pattern: 'x', type: 'csv' }],
+    ['Grep', { pattern: 'x' }],
+    ['Grep', { pattern: 'x', path: '.' }],
+    ['Grep', { pattern: 'x', path: '/proj/kakaotalk_chat_trend' }],
+    ['Grep', { pattern: 'x', glob: '**/*' }],
+    ['Bash', { command: 'head -3 x.csv' }],
+    ['Bash', { command: `node -e "require('./parser').decodeAndParse(require('fs').readFileSync('chat.csv'))"` }],
+    ['Bash', { command: 'ls KakaoTalk_Chat_*' }],
+    ['Bash', { command: 'grep -rn 오후 .' }],
+    ['Bash', { command: 'grep -R x .' }],
+    ['Bash', { command: 'npm test && grep --recursive x .' }],
+  ];
+  const allowed = [
+    ['Read', { file_path: '/proj/kakaotalk_chat_trend/parser.js' }],
+    ['Glob', { pattern: '**/*.js' }],
+    ['Grep', { pattern: 'parseCsvRows', glob: '*.{js,mjs,css,html,json}' }],
+    ['Grep', { pattern: 'x', type: 'js' }],
+    ['Grep', { pattern: 'x', path: 'app.js' }],
+    ['Grep', { pattern: 'x', path: '/proj/kakaotalk_chat_trend', glob: '**/*.js' }],
+    ['Bash', { command: 'git status --short' }],
+    ['Bash', { command: 'git diff --staged' }],
+    ['Bash', { command: 'cd /proj/kakaotalk_chat_trend && npm run lint' }],
+    ['Bash', { command: `node -e "console.log(require('./parser').parseCsvRows('a,b'))"` }],
+    ['Bash', { command: 'grep -n x app.js' }],
+    ['Bash', { command: 'grep -rn x --include="*.js" .' }],
+  ];
+  const show = ([tool, input]) => `${tool} ${JSON.stringify(input)}`;
+  assert.deepStrictEqual(blocked.filter((c) => !blockReason(...c)).map(show), [], '놓친 CSV 접근');
+  assert.deepStrictEqual(allowed.filter((c) => blockReason(...c)).map(show), [], '잘못 막은 호출');
+});
+
 console.log(failed ? `\n${failed}개 실패` : '\n모두 통과');
 process.exit(failed ? 1 : 0);

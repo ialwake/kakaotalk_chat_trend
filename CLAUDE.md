@@ -57,3 +57,9 @@ npm test             # node test.js — Node assert 기반, 전체가 1초 안�
   - 검사 대상은 스테이징된 내용이 아니라 작업 트리다.
   - `isGitCommit`은 `test.js`에서 감지 사례 표로 검사한다. 훅 본문(`main`)은 `require.main === module`일 때만 실행되므로 require해도 npm이 돌지 않는다.
 - **리뷰**: `code-reviewer` 서브에이전트(읽기 전용, 문제만 보고)가 `code-review-checklist` 스킬의 절차·체크리스트·보고 형식을 따른다. 코드를 고친 뒤 커밋 전에 쓴다.
+  - **리뷰어 가드 훅** (`agents/code-reviewer.md`의 `hooks` → `hooks/reviewer-guard.js`): 이 서브에이전트 안에서만 돈다. 다음 세 가지를 exit 2로 막는다.
+    - `*.csv`나 `KakaoTalk_Chat_`이 들어간 Read·Grep·Glob·Bash 호출
+    - 폴더를 `glob`·`type` 없이 훑는 Grep
+    - `--include` 없는 재귀 grep
+  - 실수를 막는 장치일 뿐 샌드박스는 아니다. 판정 함수 `blockReason`은 `test.js`에서 사례 표로 검사한다.
+  - 훅 입력을 해석하지 못하거나 스크립트를 실행하지 못해도(폴더 이름을 바꾼 뒤 세션을 재시작하지 않은 경우 등) 막는 쪽으로 동작한다.
