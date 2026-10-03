@@ -1,0 +1,17 @@
+{
+  "name": "kakao-chat-trend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mac 카카오톡 1:1 대화 CSV로 대화 추이를 보여주는 정적 웹 페이지",
+  "scripts": {
+    "lint": "eslint .",
+    "build": "node scripts/build-check.js",
+    "test": "node test.js",
+    "check": "npm run lint && npm run build && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0"
+  }
+}

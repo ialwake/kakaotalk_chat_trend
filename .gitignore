@@ -1,0 +1,5 @@
+node_modules/
+.DS_Store
+# 카카오톡 대화 내보내기 파일 (개인 대화 내용이므로 절대 커밋하지 않는다)
+*.csv
+.claude/settings.local.json

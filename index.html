@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>카톡 대화 추이</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <section id="upload" class="upload">
+      <h1>카톡 대화 추이</h1>
+      <p class="lead">Mac 카카오톡에서 내보낸 1:1 대화 CSV를 넣으면<br>두 사람의 대화가 시간에 따라 어떻게 변해왔는지 보여드려요.</p>
+      <label id="drop" class="drop">
+        <input id="file" type="file" accept=".csv,text/csv">
+        <strong>CSV 파일을 끌어다 놓거나 클릭해서 선택</strong>
+        <span>파일은 이 브라우저 안에서만 읽고, 어디에도 보내지 않아요.</span>
+      </label>
+      <p id="error" class="error" hidden></p>
+      <button id="sample" type="button" class="link">샘플 데이터로 먼저 보기</button>
+      <details class="howto">
+        <summary>CSV 내보내는 방법</summary>
+        <p>Mac 카카오톡에서 1:1 채팅방을 열고, 채팅방 메뉴에서 <b>대화 내보내기</b>를 선택하면 .csv 파일이 저장돼요.</p>
+      </details>
+    </section>
+
+    <section id="result" hidden>
+      <header class="result-head">
+        <div>
+          <h1 id="names"></h1>
+          <p id="period" class="muted"></p>
+        </div>
+        <button id="reset" type="button" class="pill">다른 파일 분석</button>
+      </header>
+
+      <p id="others-note" class="notice" hidden></p>
+      <div id="summary" class="stats"></div>
+      <div id="ratio" class="ratio"></div>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>대화 추이</h2>
+          <div class="toggle" role="group" aria-label="집계 단위">
+            <button type="button" class="pill" data-unit="month" aria-pressed="true">월별</button>
+            <button type="button" class="pill" data-unit="week" aria-pressed="false">주별</button>
+          </div>
+        </div>
+        <p id="readout" class="readout"></p>
+        <div class="chart-wrap">
+          <span id="chart-max" class="chart-max"></span>
+          <div class="chart-scroll"><div id="chart" class="chart"></div></div>
+        </div>
+        <div id="legend" class="legend"></div>
+      </section>
+
+      <div id="highlights" class="highlights"></div>
+
+      <section class="panel">
+        <h2>언제 대화할까</h2>
+        <p id="peak" class="muted"></p>
+        <div id="heatmap" class="heatmap"></div>
+      </section>
+
+      <p id="meta" class="meta"></p>
+    </section>
+  </main>
+
+  <script src="parser.js"></script>
+  <script src="analyze.js"></script>
+  <script src="sample.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

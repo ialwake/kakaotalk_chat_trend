@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit-check.js\"",
+            "timeout": 180,
+            "statusMessage": "커밋 전 린트·빌드·테스트 실행 중..."
+          }
+        ]
+      }
+    ]
+  }
+}
