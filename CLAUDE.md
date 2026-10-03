@@ -4,8 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트
 
-Mac 카카오톡 "대화 내보내기" CSV(1:1 대화)를 브라우저에서 읽어 대화 추이를 보여 주는 개인용 정적 페이지.
-빌드 단계 없이 `index.html`을 더블클릭(`file://`)해서 연다. 배포하지 않는다.
+Mac 카카오톡 "대화 내보내기" CSV(1:1 대화)를 브라우저에서 읽어 대화 추이를 보여 주는 정적 페이지.
+빌드 단계 없이 `index.html`을 더블클릭(`file://`)해서 연다.
+GitHub Pages(https://ialwake.github.io/kakaotalk_chat_trend/, main 브랜치 루트, `.nojekyll`)로도 공개되어 있다. 빌드 단계가 없으므로 main에 푸시하면 그대로 반영된다. 사용자용 안내는 `README.md`에 있다.
 실제 Mac 내보내기 파일로 형식을 검증하지 못한 상태라서 파서는 열 이름·날짜 표기를 너그럽게 받도록 되어 있다.
 
 ## 명령
@@ -49,6 +50,7 @@ npm test             # node test.js — Node assert 기반, 전체가 1초 안�
 - 런타임 의존성을 추가하지 않는다.
 - `parser.js`·`analyze.js`에 분기나 계산을 추가하면 `test.js`에 케이스를 함께 넣는다.
 - **프로젝트 폴더의 `*.csv`는 사용자의 실제 개인 대화다.** 열거나 읽거나 내용을 출력하지 않는다. `.gitignore`의 `*.csv`로 커밋에서 빠져 있다. 파서가 실제 형식과 맞는지 확인해야 하면, 사용자 허락을 받은 뒤 열 이름·인코딩·메시지 수·건너뛴 행 수만 출력한다.
+- 저장소가 PUBLIC이다. 커밋 내용(테스트·문서·커밋 메시지 포함)에 실제 대화 내용이나 대화 상대 이름을 넣지 않는다. 스테이징은 파일 이름을 지정해서 하고 `git add -A`·`git add -f`는 쓰지 않는다.
 
 ## Claude Code 설정 (`.claude/`)
 
