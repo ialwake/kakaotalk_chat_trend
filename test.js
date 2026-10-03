@@ -3,6 +3,8 @@ const assert = require('assert');
 const { parse, parseDate, decodeAndParse } = require('./parser.js');
 const { analyze } = require('./analyze.js');
 const { buildSampleCsv, SAMPLE_GAP } = require('./sample.js');
+const { isGitCommit } = require('./.claude/hooks/pre-commit-check.js');
+const { blockReason } = require('./.claude/hooks/reviewer-guard.js');
 
 let failed = 0;
 function test(name, fn) {
@@ -68,6 +70,20 @@ test('한글 헤더와 다른 열 순서', () => {
   assert.strictEqual(r.messages[0].text, '안녕');
 });
 
+test('빈 줄은 건너뛰고 읽지 못한 행만 센다', () => {
+  const r = parse([
+    'Date,User,Message',
+    '2024-01-15 10:00:00,"민지","안녕"',
+    '',
+    '날짜 아님,"준호","반가워"',
+    '',
+    '2024-01-15 10:02:00,"준호","응"',
+    '',
+  ].join('\n'));
+  assert.deepStrictEqual(r.messages.map((m) => m.text), ['안녕', '응']);
+  assert.strictEqual(r.skipped, 1);
+});
+
 test('날짜 표기 변형과 오전/오후 12시 경계', () => {
   assert.strictEqual(parseDate('2024.01.15 오후 12:30').getHours(), 12);
   assert.strictEqual(parseDate('2024/1/5 오전 12:10').getHours(), 0);
@@ -82,7 +98,43 @@ test('UTF-8 바이트 디코딩', () => {
   assert.strictEqual(r.messages.length, 4);
 });
 
+test('이름·메시지만 EUC-KR이어도 EUC-KR로 읽음', () => {
+  // 날짜와 헤더는 ASCII라 관대한 UTF-8 디코딩으로도 메시지가 잡히는 경우
+  const bytes = Buffer.concat([
+    Buffer.from('Date,User,Message\n2024-01-15 10:00:00,', 'ascii'),
+    Buffer.from([0xb9, 0xce, 0xc1, 0xf6]), // 민지
+    Buffer.from(',', 'ascii'),
+    Buffer.from([0xbe, 0xc8, 0xb3, 0xe7]), // 안녕
+  ]);
+  const r = decodeAndParse(bytes);
+  assert.strictEqual(r.encoding, 'EUC-KR');
+  assert.strictEqual(r.messages[0].user, '민지');
+  assert.strictEqual(r.messages[0].text, '안녕');
+});
+
+test('UTF-8에 잘못된 바이트가 하나 섞여도 UTF-8로 읽음', () => {
+  const bytes = Buffer.concat([Buffer.from(BASIC + '\n2024-01-16 09:00:00,"민지","', 'utf8'), Buffer.from([0xff]), Buffer.from('"', 'utf8')]);
+  const r = decodeAndParse(bytes);
+  assert.strictEqual(r.encoding, 'UTF-8');
+  assert.deepStrictEqual(r.messages.map((m) => m.user), ['민지', '준호', '민지', '준호', '민지']);
+});
+
 // ---- 분석 ----
+
+test('빈 입력이면 null', () => {
+  assert.strictEqual(analyze([]), null);
+});
+
+test('메시지 1건·참여자 1명', () => {
+  const s = analyze([msg(D(2024, 1, 15, 10), 'A')]);
+  assert.deepStrictEqual(s.people, [{ name: 'A', count: 1 }]);
+  assert.strictEqual(s.others, null);
+  assert.strictEqual(s.spanDays, 1);
+  assert.strictEqual(s.longestStreak.days, 1);
+  assert.strictEqual(s.longestGap, null);
+  assert.strictEqual(s.months.length, 1);
+  assert.strictEqual(s.weeks.length, 1);
+});
 
 test('월/주 버킷과 빈 기간 0 채우기', () => {
   const s = analyze([msg(D(2024, 1, 30), 'A'), msg(D(2024, 1, 31), 'B'), msg(D(2024, 3, 2), 'A')]);
@@ -91,6 +143,7 @@ test('월/주 버킷과 빈 기간 0 채우기', () => {
   assert.deepStrictEqual(s.weeks.map((b) => b.total), [2, 0, 0, 0, 1]);
   assert.strictEqual(ymd(s.weeks[0].start), '2024-1-29'); // 월요일 시작
   assert.deepStrictEqual(s.people, [{ name: 'A', count: 2 }, { name: 'B', count: 1 }]);
+  assert.strictEqual(s.others, null); // 2명이면 기타 없음
   assert.strictEqual(s.spanDays, 33);
   assert.strictEqual(s.activeDays, 3);
 });
@@ -142,6 +195,58 @@ test('샘플 데이터가 파서를 통과하고 설계한 공백기가 잡힘',
   assert.strictEqual(s.months.length, 14);
   assert.strictEqual(ymd(s.longestGap.from), ymd(SAMPLE_GAP.from));
   assert.strictEqual(ymd(s.longestGap.to), ymd(SAMPLE_GAP.to));
+});
+
+// ---- 커밋 훅 ----
+
+test('커밋 훅이 git commit 명령을 알아봄', () => {
+  const commits = [
+    'git commit',
+    'git commit -m x',
+    'git add -A && git commit -m "x"',
+    'git commit;git push',
+    'git commit&&git push',
+    '(git commit -m x)',
+    '$(git commit)',
+    'git add .\ngit commit -m x',
+    'bash -c "git commit -m x"',
+    '/usr/bin/git commit',
+    'git --no-pager commit -m x',
+    'git -p commit --amend',
+    'git --git-dir=.git --work-tree=. commit',
+    'git --git-dir .git commit',
+    'git -c user.name=x commit',
+    'git -C /tmp/a -c "user.name=A B" commit -m x',
+    'git -C "/a b" commit',
+    'git -C a\\ b commit',
+    'git -c user.name="A B" commit -m x',
+    "git -c user.name='A B' commit",
+    'git commit>/dev/null',
+    'git commit<<EOF',
+    'git \\\ncommit -m x',
+    '`git commit`',
+  ];
+  const others = [
+    'ls',
+    'npm test',
+    'git status',
+    'git log --oneline -n 5',
+    'git log --grep commit',
+    'git commit-tree abc',
+    'gitk commit',
+    'legit commit',
+    'git config commit.gpgsign false',
+    'git -c commit.gpgsign=false log',
+  ];
+  assert.deepStrictEqual(commits.filter((c) => !isGitCommit(c)), [], '놓친 커밋 명령');
+  assert.deepStrictEqual(others.filter((c) => isGitCommit(c)), [], '커밋으로 잘못 본 명령');
+});
+
+test('커밋 훅 감지는 옵션이 많은 긴 명령에서도 빠름', () => {
+  // 모든 Bash 호출마다 도는 검사라 정규식 되짚기가 옵션 수에 따라 늘어나면 안 된다
+  const start = Date.now();
+  for (const opt of ['-c "k=v" ', '-c ', '-c a ', '--x="a b" ']) isGitCommit(`git ${opt.repeat(60)}log`);
+  assert.ok(Date.now() - start < 200, `${Date.now() - start}ms`);
 });
 
 console.log(failed ? `\n${failed}개 실패` : '\n모두 통과');

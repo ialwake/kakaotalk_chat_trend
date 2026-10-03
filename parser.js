@@ -80,18 +80,27 @@
     };
   }
 
-  // 파일 바이트 → 파싱 결과. UTF-8로 한 건도 못 읽으면 EUC-KR로 한 번 더 시도
-  function decodeAndParse(buffer) {
-    let result = { ...parse(new TextDecoder('utf-8').decode(buffer)), encoding: 'UTF-8' };
-    if (!result.messages.length) {
-      try {
-        const alt = parse(new TextDecoder('euc-kr').decode(buffer));
-        if (alt.messages.length) result = { ...alt, encoding: 'EUC-KR' };
-      } catch {
-        // 이 환경이 EUC-KR 디코딩을 지원하지 않으면 UTF-8 결과를 그대로 쓴다
-      }
+  const brokenChars = (s) => s.split('�').length - 1;
+
+  // 파일 바이트 → 문자열. UTF-8로 깨지는 글자가 있으면 EUC-KR(CP949)로도 읽어 깨진 글자가 적은 쪽을 고른다.
+  // 날짜는 ASCII라 이름·메시지만 EUC-KR이어도 UTF-8로 메시지가 잡히므로 메시지 수로는 판단할 수 없고,
+  // UTF-8 파일에 잘못된 바이트가 한두 개 섞인 경우까지 EUC-KR로 바꾸면 한글 전체가 깨지므로 개수를 비교한다
+  function decodeText(buffer) {
+    const utf8 = new TextDecoder('utf-8').decode(buffer);
+    if (!utf8.includes('�')) return { text: utf8, encoding: 'UTF-8' };
+    try {
+      const euckr = new TextDecoder('euc-kr').decode(buffer);
+      if (brokenChars(euckr) < brokenChars(utf8)) return { text: euckr, encoding: 'EUC-KR' };
+    } catch {
+      // 이 환경이 EUC-KR 디코딩을 지원하지 않으면 UTF-8 결과를 그대로 쓴다
     }
-    return result;
+    return { text: utf8, encoding: 'UTF-8' };
+  }
+
+  // 파일 바이트 → 파싱 결과
+  function decodeAndParse(buffer) {
+    const { text, encoding } = decodeText(buffer);
+    return { ...parse(text), encoding };
   }
 
   const api = { parse, parseDate, parseCsvRows, decodeAndParse };

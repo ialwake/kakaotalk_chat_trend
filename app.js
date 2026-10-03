@@ -3,7 +3,7 @@
   'use strict';
 
   const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
-  const state = { stats: null, unit: 'month' };
+  const state = { stats: null, unit: 'month', trend: null };
 
   const $ = (id) => document.getElementById(id);
   const num = (n) => n.toLocaleString('ko-KR');
@@ -73,6 +73,7 @@
 
   function reset() {
     state.stats = null;
+    state.trend = null;
     $('file').value = '';
     showError('');
     $('result').hidden = true;
@@ -167,32 +168,37 @@
       if (s.others) counts.push(`기타 ${num(b.counts[2])}`);
       return `${bucketName(b, unit)} · 총 ${num(b.total)}개 (${counts.join(', ')})`;
     };
-    const readout = $('readout');
     const defaultText = `${unit === 'month' ? '가장 대화가 많았던 달' : '가장 대화가 많았던 주'} — ${describe(best)}`;
-    // 라벨 하나에 약 34px가 필요하므로, 실제 차트 폭에서 한 달이 차지하는 폭을 보고 라벨 간격을 정한다
-    const minCol = unit === 'month' ? 21 : 8; // style.css의 .chart --col + --gap
-    const chartWidth = Math.max($('chart').parentElement.clientWidth, list.length * minCol);
-    const every = Math.max(1, Math.ceil((34 * s.months.length) / chartWidth));
+    const slots = [...s.people.keys(), ...(s.others ? [2] : [])]; // 실제 있는 사람과 '기타' 조각만 만든다
 
-    const cols = list.map((b, i) => {
-      const col = h('div', { class: b === best ? 'col best' : 'col', tabindex: 0, 'aria-label': describe(b) },
+    // 막대 hover·포커스 시 readout은 이벤트 섹션의 차트 리스너가 aria-label을 읽어 채운다
+    const cols = list.map((b) =>
+      h('div', { class: b === best ? 'col best' : 'col', tabindex: 0, 'aria-label': describe(b) },
         h('div', { class: 'bar-area' },
           h('div', { class: 'stack', style: { height: `${(b.total / max) * 100}%` } },
-            [0, 1, 2].map((slot) => h('i', { class: `seg ${'abo'[slot]}`, style: { 'flex-grow': b.counts[slot] } })))),
-        h('span', { class: 'xl' }, axisLabel(list, i, unit, every)));
-      const showThis = () => { readout.textContent = describe(b); };
-      col.addEventListener('pointerenter', showThis);
-      col.addEventListener('focus', showThis);
-      return col;
-    });
+            slots.map((slot) => h('i', { class: `seg ${'abo'[slot]}`, style: { 'flex-grow': b.counts[slot] } })))),
+        h('span', { class: 'xl' })));
 
     const chart = $('chart');
     chart.dataset.unit = unit;
     chart.style.setProperty('--n', list.length);
-    chart.onpointerleave = () => { readout.textContent = defaultText; };
     chart.replaceChildren(...cols);
-    readout.textContent = defaultText;
+    state.trend = { list, unit, every: 0, defaultText };
+    renderAxis();
+    $('readout').textContent = defaultText;
     $('chart-max').textContent = `최대 ${num(max)}개`;
+  }
+
+  // 라벨 하나에 약 34px가 필요하므로, 실제 차트 폭에서 한 달이 차지하는 폭을 보고 라벨 간격을 정한다.
+  // 화면 폭이 바뀌면 막대는 그대로 두고 라벨 글자만 다시 쓴다
+  function renderAxis() {
+    const { list, unit } = state.trend;
+    const minCol = unit === 'month' ? 21 : 8; // style.css의 .chart --col + --gap
+    const chartWidth = Math.max($('chart').parentElement.clientWidth, list.length * minCol);
+    const every = Math.max(1, Math.ceil((34 * state.stats.months.length) / chartWidth));
+    if (every === state.trend.every) return;
+    state.trend.every = every;
+    $('chart').querySelectorAll('.xl').forEach((el, i) => { el.textContent = axisLabel(list, i, unit, every); });
   }
 
   function renderHighlights() {
@@ -252,9 +258,18 @@
       renderTrend();
     });
   }
+  // 막대가 수백 개여도 리스너는 차트에 하나씩만 둔다 (pointerover·focusin은 버블링됨)
+  const chart = $('chart');
+  const showBar = (e) => {
+    const col = e.target.closest('.col');
+    if (col) $('readout').textContent = col.getAttribute('aria-label');
+  };
+  chart.addEventListener('pointerover', showBar);
+  chart.addEventListener('focusin', showBar);
+  chart.addEventListener('pointerleave', () => { if (state.trend) $('readout').textContent = state.trend.defaultText; });
   let resizeFrame = 0;
   window.addEventListener('resize', () => {
     cancelAnimationFrame(resizeFrame);
-    resizeFrame = requestAnimationFrame(() => { if (state.stats) renderTrend(); });
+    resizeFrame = requestAnimationFrame(() => { if (state.trend) renderAxis(); });
   });
 })();
